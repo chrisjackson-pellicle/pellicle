@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 """
+Requirements: Biopython
+
 This script takes an input fastq file (compressed with gzip, i.e. suffix .gz, or uncompressed), and a list of
 restriction enzyme names. Each sequence in the input fastq file is in-silico digested with the enzymes specified,
 and any resulting sequences beneath a minimum length (default 100 bases) are discarded. All other sequences are
@@ -159,7 +161,7 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
     :return:
     """
 
-    # Create dictionary to count number of sequences cut by each enzyme:
+    # Create a dictionary to count number of sequences cut by each enzyme:
     sequence_enzyme_counter_dict = defaultdict(int)
     for enzyme in enzyme_batch:
         sequence_enzyme_counter_dict[str(enzyme)] = 0
@@ -188,8 +190,8 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
             # logger.info(f'{"[INFO]:":10} No cut sites found for sequence {seq.name}')
         else:
             sequence_counter_cut_at_least_once += 1
-            ordered_sites.insert(0, 1)
-            ordered_sites.append(len(seq))
+            ordered_sites.insert(0, 1)  # insert a coordinate for the first base of the sequence
+            ordered_sites.append(len(seq))  # insert a coordinate for the last base of the sequence
             index_pairs_above_length_cutoff = []
 
             for index1, index2 in pairwise(ordered_sites):
@@ -204,14 +206,15 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
             if verbose_log:
                 logger.debug(f'{"[INFO]:":10} Retained fragment indexes for {seq.name}:'
                              f' {index_pairs_above_length_cutoff}')
-            fragments_to_write = []
 
+            fragments_to_write = []
             for fragment_index_pair in index_pairs_above_length_cutoff:
                 fragment_seq = seq[fragment_index_pair[0] - 1: fragment_index_pair[1] - 1]
                 fragments_to_write.append(fragment_seq)
 
             # Write sequences to file:
             SeqIO.write(fragments_to_write, filtered_fastq_handle, 'fastq')
+            
             if len(fragments_to_write) > 1 and verbose_log:
                 logger.debug(f'{"[INFO]:":10} Following in-silico digestion there is more than one fragment '
                              f'above the minimum length threshold for sequence {seq.name}.')
@@ -229,7 +232,7 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
 
 def digest_and_filter_by_size(fastq_file, enzymes, min_length, verbose_log, uncompressed_output):
     """
-    Takes a fastq file, optionally in *.gz format
+    Takes a fastq file, optionally in *.gz format.
 
     :param str fastq_file: path to a fastq file - can be in *.gz format
     :param list enzymes: list of Bio.Restriction enzyme classes for in-silico digestion
@@ -289,26 +292,29 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('fastq_file',
                         type=str,
-                        help='A file of sequences in *.fastq format')
+                        help='A file of sequences in *.fastq format. Can be gzipped (file name suffix .gz)')
     parser.add_argument('min_length',
                         type=int,
-                        help='Minimum sequences length for a sequence to be retained')
+                        default=100,
+                        help='Minimum number of bases for a sequence to be retained following in-silico digestion. '
+                             'Default is %(default)s')
     parser.add_argument('--restriction_enzymes',
                         nargs='+',
                         required=True,
-                        help='One or more restriction enzyme names (e.g. "EcoRI") separated by spaces. The input DNA '
-                             'sequences will be in-silico digested and size filtered using each enzyme sequentially, '
-                             'in the order provided')
+                        help='One or more restriction enzyme names (e.g. "EcoRI") separated by spaces. Each input DNA '
+                             'sequence will be in-silico digested using all the enzymes listed')
     parser.add_argument('--uncompressed_output',
                         action='store_true',
                         default=False,
-                        help='If provided, write an uncompressed output fastq file. Note that the file size will be '
-                             'MUCH larger!')
+                        help='If the flag is used, the output fastq file will be written in uncompressed text format. '
+                             'Note that the file size will be MUCH larger then a compressed (suffix .gz) file. A '
+                             'compressed file will be written by default.')
     parser.add_argument('--verbose_log',
                         action='store_true',
                         default=False,
-                        help='If provided, further details will be written for _every_ sequence; not that this will '
-                             'produce very large log files and make processing much slower!')
+                        help='If provided, additional details will be written to the log file for _every_ sequence '
+                             'processed. Note that this will produce very large log files and will make processing '
+                             'much slower!')
     parser.add_argument('--version', '-v',
                         dest='version',
                         action='version',
@@ -327,7 +333,7 @@ def main():
     args = parse_arguments()
     logger.info(f'Running {__name__} with: {args}')
 
-    # Check that the input fastq file is exists and is not empty:
+    # Check that the input fastq file exists and is not empty:
     if not file_exists_and_not_empty(args.fastq_file):
         sys.exit(f'{"[ERROR]:":10} The fastq file "{args.fastq_file}" either does not exist, or is empty. Please '
                  f'check your input!')
@@ -342,14 +348,16 @@ def main():
             all_enzyme_classes.append(enzyme_class)
 
             logger.info(f'{"[INFO]:":10} User-specified enzyme "{enzyme}" found, with cut site {enzyme_class.site}. '
-                        f'Blunt:'
-                        f' {enzyme_class.is_blunt()}, 5-prime overhang: {enzyme_class.is_5overhang()}, '
+                        f'Blunt: {enzyme_class.is_blunt()}, 5-prime overhang: {enzyme_class.is_5overhang()}, '
                         f'3-prime overhang: {enzyme_class.is_3overhang()}. Cut site graphic:'
                         f' {enzyme_class.elucidate()}.')
 
         except AttributeError:
             sys.exit(f'{"[ERROR]:":10} No enzyme called "{enzyme}" found! Please check enzyme name, and use correct '
                      f'upper-case latin numbers (e.g. EcoRI, rather than EcoR1).')
+
+    logger.info(f'{"[INFO]:":10} Graphic key: the ^ refers to the position of the cut in the sense strand of the '
+                f'sequence, _ to the cut on the antisense or complementary strand. ^_ means blunt.')
 
     # Digest and filter, and write output files and stats:
     digest_and_filter_by_size(args.fastq_file,
