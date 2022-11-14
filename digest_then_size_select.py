@@ -20,6 +20,7 @@ from Bio import SeqIO, Restriction
 import datetime
 import itertools
 from collections import defaultdict
+import textwrap
 
 
 # f-strings will produce a 'SyntaxError: invalid syntax' error if not supported by Python version:
@@ -168,6 +169,7 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
 
     # Set counters:
     sequence_counter = 0
+    cumulative_sequence_counter = 0
     sequence_counter_cut_at_least_once = 0
 
     if uncompressed_output:
@@ -177,6 +179,10 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
 
     for seq in seq_iterator:
         sequence_counter += 1
+        
+        if not sequence_counter % 10000:
+            sys.stderr.write(f'\r{"[INFO]:":10} Number of sequences processed: {sequence_counter}')
+
         cut_site_dict = enzyme_batch.search(seq.seq, linear=True)
 
         for enzyme, cut_site_locations in cut_site_dict.items():
@@ -220,10 +226,12 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
                              f'above the minimum length threshold for sequence {seq.name}.')
 
     filtered_fastq_handle.close()
+    # logger.info(f'\n')
 
     # Write stats to screen and file:
-    logger.info(f'{"[INFO]:":10} Total number of input sequences processed: {sequence_counter}')
-    logger.info(f'{"[INFO]:":10} Number of input sequences cut at least once: {sequence_counter_cut_at_least_once}')
+    logger.info(f'\n{"[INFO]:":10} Total number of input sequences processed: {sequence_counter}')
+    logger.info(f'{"[INFO]:":10} Number of input sequences cut at least once: {sequence_counter_cut_at_least_once}/'
+                f'{sequence_counter} ({((sequence_counter_cut_at_least_once / sequence_counter) * 100):.2f}%)')
 
     for enzyme, sequence_cut_count in sequence_enzyme_counter_dict.items():
         logger.info(f'{"[INFO]:":10} Number of sequences cut with enzyme {enzyme}: {sequence_cut_count}'
@@ -347,17 +355,24 @@ def main():
             enzyme_class = getattr(Restriction, enzyme)
             all_enzyme_classes.append(enzyme_class)
 
-            logger.info(f'{"[INFO]:":10} User-specified enzyme "{enzyme}" found, with cut site {enzyme_class.site}. '
-                        f'Blunt: {enzyme_class.is_blunt()}, 5-prime overhang: {enzyme_class.is_5overhang()}, '
-                        f'3-prime overhang: {enzyme_class.is_3overhang()}. Cut site graphic:'
-                        f' {enzyme_class.elucidate()}.')
+            fill = textwrap.fill(
+                f'{"[INFO]:":10} User-specified enzyme "{enzyme}" found, with cut site {enzyme_class.site}. Blunt:'
+                f' {enzyme_class.is_blunt()}, 5-prime overhang: {enzyme_class.is_5overhang()}, 3-prime overhang:'
+                f' {enzyme_class.is_3overhang()}. Cut site graphic: {enzyme_class.elucidate()}.',
+                width=70, subsequent_indent=' ' * 11)
+
+            logger.info(fill)
 
         except AttributeError:
             sys.exit(f'{"[ERROR]:":10} No enzyme called "{enzyme}" found! Please check enzyme name, and use correct '
                      f'upper-case Latin numbers (e.g. EcoRI, rather than EcoR1).')
 
-    logger.info(f'{"[INFO]:":10} Graphic key: the ^ refers to the position of the cut in the sense strand of the '
-                f'sequence, _ to the cut on the antisense or complementary strand. ^_ means blunt.')
+    fill = textwrap.fill(
+        f'{"[INFO]:":10} Graphic key: the ^ symbol refers to the position of the cut in the sense strand of the '
+        f'sequence, _ to the cut on the anti-sense or complementary strand. ^_ means blunt.',
+        width=70, subsequent_indent=' ' * 11)
+
+    logger.info(fill)
 
     # Digest and filter, and write output files and stats:
     digest_and_filter_by_size(args.fastq_file,
