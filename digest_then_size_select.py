@@ -214,7 +214,7 @@ def cut_filter_and_report(seq_iterator, verbose_log, enzyme_batch, output_folder
 
             # Write sequences to file:
             SeqIO.write(fragments_to_write, filtered_fastq_handle, 'fastq')
-            
+
             if len(fragments_to_write) > 1 and verbose_log:
                 logger.debug(f'{"[INFO]:":10} Following in-silico digestion there is more than one fragment '
                              f'above the minimum length threshold for sequence {seq.name}.')
@@ -302,19 +302,19 @@ def parse_arguments():
                         nargs='+',
                         required=True,
                         help='One or more restriction enzyme names (e.g. "EcoRI") separated by spaces. Each input DNA '
-                             'sequence will be in-silico digested using all the enzymes listed')
+                             'sequence will be in-silico digested using all the enzymes listed.')
     parser.add_argument('--uncompressed_output',
                         action='store_true',
                         default=False,
-                        help='If the flag is used, the output fastq file will be written in uncompressed text format. '
+                        help='If this flag is used, the output fastq file will be written in uncompressed text format. '
                              'Note that the file size will be MUCH larger then a compressed (suffix .gz) file. A '
                              'compressed file will be written by default.')
     parser.add_argument('--verbose_log',
                         action='store_true',
                         default=False,
-                        help='If provided, additional details will be written to the log file for _every_ sequence '
-                             'processed. Note that this will produce very large log files and will make processing '
-                             'much slower!')
+                        help='If this flag is used, additional details will be written to the log file for _every_ '
+                             'sequence processed. Note that this will produce very large log files and will make '
+                             'processing much slower!')
     parser.add_argument('--version', '-v',
                         dest='version',
                         action='version',
@@ -354,7 +354,7 @@ def main():
 
         except AttributeError:
             sys.exit(f'{"[ERROR]:":10} No enzyme called "{enzyme}" found! Please check enzyme name, and use correct '
-                     f'upper-case latin numbers (e.g. EcoRI, rather than EcoR1).')
+                     f'upper-case Latin numbers (e.g. EcoRI, rather than EcoR1).')
 
     logger.info(f'{"[INFO]:":10} Graphic key: the ^ refers to the position of the cut in the sense strand of the '
                 f'sequence, _ to the cut on the antisense or complementary strand. ^_ means blunt.')
